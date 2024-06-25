@@ -1,115 +1,79 @@
-from dash import Dash, dcc, html, Input, Output, callback
-
-import plotly.express as px
-
-import json
+from dash import Dash, html, dcc
+from dash.dependencies import Input,Output, State
+import yfinance as yf
+from datetime import datetime #https://stackoverflow.com/questions/15707532/import-datetime-v-s-from-datetime-import-datetime
 import pandas as pd
-
-external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
-
-app = Dash(__name__, external_stylesheets=external_stylesheets)
+import dash_auth
 server = app.server
-styles = {
-    'pre': {
-        'border': 'thin lightgrey solid',
-        'overflowX': 'scroll'
-    }
-}
+USERNAME_PASSWORD_PAIRS = [['rsingh', 'singhsh']]
 
-df = pd.DataFrame({
-    "x": [1,2,1,2],
-    "y": [1,2,3,4],
-    "customdata": [1,2,3,4],
-    "fruit": ["apple", "apple", "orange", "orange"]
-})
 
-fig = px.scatter(df, x="x", y="y", color="fruit", custom_data=["customdata"])
+app = Dash(__name__)
 
-fig.update_layout(clickmode='event+select')
+dash_auth.BasicAuth(app, USERNAME_PASSWORD_PAIRS)
 
-fig.update_traces(marker_size=20)
+nsdq = pd.read_csv('NASDAQcompanylist.csv')
+nsdq.set_index('Symbol', inplace = True)
 
+options = []
+
+for tic in nsdq.index:
+    mydict = {}
+    mydict['label'] = nsdq.loc[tic]['Name']+' '+tic
+    mydict['value'] = tic
+    options.append(mydict)
+
+#https://www.w3schools.com/css/css_dropdowns.asp
 app.layout = html.Div([
-    dcc.Graph(
-        id='basic-interactions',
-        figure=fig
-    ),
-
-    html.Div(className='row', children=[
-        html.Div([
-            dcc.Markdown("""
-                **Hover Data**
-
-                Mouse over values in the graph.
-            """),
-            html.Pre(id='hover-data', style=styles['pre'])
-        ], className='three columns'),
-
-        html.Div([
-            dcc.Markdown("""
-                **Click Data**
-
-                Click on points in the graph.
-            """),
-            html.Pre(id='click-data', style=styles['pre']),
-        ], className='three columns'),
-
-        html.Div([
-            dcc.Markdown("""
-                **Selection Data**
-
-                Choose the lasso or rectangle tool in the graph's menu
-                bar and then select points in the graph.
-
-                Note that if `layout.clickmode = 'event+select'`, selection data also
-                accumulates (or un-accumulates) selected data if you hold down the shift
-                button while clicking.
-            """),
-            html.Pre(id='selected-data', style=styles['pre']),
-        ], className='three columns'),
-
-        html.Div([
-            dcc.Markdown("""
-                **Zoom and Relayout Data**
-
-                Click and drag on the graph to zoom or click on the zoom
-                buttons in the graph's menu bar.
-                Clicking on legend items will also fire
-                this event.
-            """),
-            html.Pre(id='relayout-data', style=styles['pre']),
-        ], className='three columns')
-    ])
+            html.H1('Stock Ticker Dashboard'),
+            html.Div([
+                html.H3('Enter a Stock Ticker:', style = {'paddingRight':'30px'}),
+                dcc.Dropdown(id = 'my-ticker-symbol',
+                          options = options,
+                          value = ['TSLA'],
+                          multi = True,
+                          style = {'fontSize':20}
+                          )],#style={'fontSize': 20, 'width': 150}
+                style={'display': 'inline-block', 'verticalAlign': 'top', 'color': 'blue', 'marginLeft': '10px'}),
+            html.Div([html.H3('Select a start and end date:'),
+                     dcc.DatePickerRange(id = 'my_date_picker',
+                                         initial_visible_month= datetime.today(),
+                                         min_date_allowed='2015-1-1',
+                                         max_date_allowed=datetime.today(),
+                                         start_date = '2020-1-1',
+                                         end_date = datetime.today(),
+                                         with_portal = True)
+                      ], style = {'display': 'inline-block'}),
+            html.Button(id = 'submit-button',
+                        n_clicks = 0,
+                        children = 'Submit',
+                        style={'fontSize': 15,'marginLeft':'10px', 'color':'white', 'color-scheme': 'dark'}),
+            dcc.Graph(id='my-graph',
+                        figure={'data': [
+                                 {'x': [1, 2], 'y': [3, 1]}
+                                ], 'layout': {'title': 'Default Title'}})
 ])
 
+@app.callback(Output('my-graph', 'figure'),
+              [Input('submit-button', 'n_clicks')],
+              [State('my-ticker-symbol', 'value'),
+               State('my_date_picker','start_date'),
+               State('my_date_picker','end_date')
+               ])
 
-@callback(
-    Output('hover-data', 'children'),
-    Input('basic-interactions', 'hoverData'))
-def display_hover_data(hoverData):
-    return json.dumps(hoverData, indent=2)
+def update_graph(n_clicks, stock_ticker, start_date, end_date):
+    start = datetime.strptime(start_date[:10],'%Y-%m-%d')
+    end  = datetime.strptime(end_date[:10],'%Y-%m-%d')
 
+    traces = []
+    for tic in stock_ticker:
+        df = yf.download(tic, start, end)
+        traces.append({'x': df.index, 'y': df['Close'],'name': tic})
 
-@callback(
-    Output('click-data', 'children'),
-    Input('basic-interactions', 'clickData'))
-def display_click_data(clickData):
-    return json.dumps(clickData, indent=2)
-
-
-@callback(
-    Output('selected-data', 'children'),
-    Input('basic-interactions', 'selectedData'))
-def display_selected_data(selectedData):
-    return json.dumps(selectedData, indent=2)
-
-
-@callback(
-    Output('relayout-data', 'children'),
-    Input('basic-interactions', 'relayoutData'))
-def display_relayout_data(relayoutData):
-    return json.dumps(relayoutData, indent=2)
-
+    fig = {
+            'data': traces,
+            'layout': {'title': stock_ticker}}
+    return fig
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug = True, port = 8070)
