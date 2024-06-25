@@ -4,12 +4,11 @@ import yfinance as yf
 from datetime import datetime #https://stackoverflow.com/questions/15707532/import-datetime-v-s-from-datetime-import-datetime
 import pandas as pd
 import dash_auth
-server = app.server
 USERNAME_PASSWORD_PAIRS = [['rsingh', 'singhsh']]
 
 
 app = Dash(__name__)
-
+server = app.server
 dash_auth.BasicAuth(app, USERNAME_PASSWORD_PAIRS)
 
 nsdq = pd.read_csv('NASDAQcompanylist.csv')
