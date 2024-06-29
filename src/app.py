@@ -4,8 +4,8 @@ import yfinance as yf
 from datetime import datetime #https://stackoverflow.com/questions/15707532/import-datetime-v-s-from-datetime-import-datetime
 import pandas as pd
 import dash_auth
-USERNAME_PASSWORD_PAIRS = [['rsingh', 'singhsh']]
 
+USERNAME_PASSWORD_PAIRS=[['Sheraz', 'sali']]
 
 app = Dash(__name__)
 server = app.server
